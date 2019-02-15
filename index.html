@@ -9,9 +9,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dc/2.1.8/dc.min.css" type="text/css" />
     
     <style>
-        div {
+        div, h2 {
             clear: left;
         }
+
     </style>
 
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"></script>
@@ -34,8 +35,30 @@
         <h3>Total Spend Per State</h3>
         <div id="per-state-chart"></div>
     </div>
+<br>
+
+    <h2>DC LineChart</h2>
+
+    <div>
+        <h3>Spent Per Month Per Person</h3>
+        <div id="composite-chart"></div>
+    </div>
+<br>
+<h2>DC Stacked Bar Chart</h2>
+
+    <div>
+        <h3>Total Spend Per Person Broken Down By Store</h3>
+        <div id="stacked-chart"></div>
+    </div>
+    <h2>DC Scatter Plot</h2>
+
+    <div>
+        <h3>Transactions per date</h3>
+        <div id="scatter-plot"></div>
+    </div>
 
     <script>
+    // Pie chart boilerplate
         queue()
             .defer(d3.json, "data/transactions.json")
             .await(makeGraphs);
@@ -72,5 +95,138 @@
             dc.renderAll();
         }
     </script>
+     <script>
+         // Line chart boilerplate
+    queue()
+        .defer(d3.json, "data/transactions.json")
+        .await(makeGraphs);
+    function makeGraphs(error, transactionsData) {
+        var ndx = crossfilter(transactionsData);
+        var parseDate = d3.time.format("%d/%m/%Y").parse;
+        transactionsData.forEach(function(d){
+            d.date = parseDate(d.date);
+        });
+        var date_dim = ndx.dimension(dc.pluck('date'));
+        var minDate = date_dim.bottom(1)[0].date;
+        var maxDate = date_dim.top(1)[0].date;
+        function spend_by_name(name) {
+            return function(d) {
+                if (d.name === name) {
+                    return +d.spend;
+                } else {
+                    return 0;
+                }
+            }
+        }
+        var tomSpendByMonth = date_dim.group().reduceSum(spend_by_name('Tom'));
+        var bobSpendByMonth = date_dim.group().reduceSum(spend_by_name('Bob'));
+        
+        var aliceSpendByMonth = date_dim.group().reduceSum(spend_by_name('Alice'));
+        var compositeChart = dc.compositeChart('#composite-chart');
+        compositeChart
+            .width(990)
+            .height(200)
+            .dimension(date_dim)
+            .x(d3.time.scale().domain([minDate, maxDate]))
+            .yAxisLabel("Spend")
+            .legend(dc.legend().x(80).y(20).itemHeight(13).gap(5))
+            .renderHorizontalGridLines(true)
+            .compose([
+                dc.lineChart(compositeChart)
+                    .colors('green')
+                    .group(tomSpendByMonth, 'Tom'),
+                dc.lineChart(compositeChart)
+                    .colors('red')
+                    .group(bobSpendByMonth, 'Bob'),
+                dc.lineChart(compositeChart)
+                    .colors('blue')
+                    .group(aliceSpendByMonth, 'Alice')
+            ])
+            .brushOn(false)
+            .render();
+        dc.renderAll();
+    }
+    </script>
+     <script>
+     // Stacked chart boilerplate
+    queue()
+        .defer(d3.json, "data/transactions.json")
+        .await(makeGraphs);
+    function makeGraphs(error, transactionsData) {
+        var ndx = crossfilter(transactionsData);
+        var name_dim = ndx.dimension(dc.pluck('name'));
+        var spendByNameStoreA = name_dim.group().reduceSum(function (d) {
+            if (d.store === 'A') {
+                return +d.spend;
+            } else {
+                return 0;
+            }
+        });
+        var spendByNameStoreB = name_dim.group().reduceSum(function (d) {
+            if (d.store === 'B') {
+                return +d.spend;
+            } else {
+                return 0;
+            }
+        });
+        var stackedChart = dc.barChart("#stacked-chart");
+        stackedChart
+            .width(500)
+            .height(500)
+            .dimension(name_dim)
+            .group(spendByNameStoreA, "Store A")
+            .stack(spendByNameStoreB, "Store B")
+            .x(d3.scale.ordinal())
+            .xUnits(dc.units.ordinal)
+            .legend(dc.legend().x(420).y(0).itemHeight(15).gap(5));
+        stackedChart.margins().right = 100;
+        dc.renderAll();
+    }
+    </script>
+    <script>
+    
+    //Scatter plate boilerplate
+    queue()
+        .defer(d3.json, "data/transactions.json")
+        .await(makeGraphs);
+    function makeGraphs(error, transactionsData) {
+        var ndx = crossfilter(transactionsData);
+        var parseDate = d3.time.format("%d/%m/%Y").parse;
+        transactionsData.forEach(function(d){
+            d.date = parseDate(d.date);
+        });
+        
+        var date_dim = ndx.dimension(function(d){
+            return d.date;
+        });
+        
+        var min_date = date_dim.bottom(1)[0].date;
+        var max_date = date_dim.top(1)[0].date;
+        
+        var spend_dim = ndx.dimension(function(d){
+            return [d.date, d.spend];
+        });
+        
+        var spend_group = spend_dim.group();
+        var spend_chart = dc.scatterPlot("#scatter-plot");
+        
+        spend_chart
+            .width(768)
+            .height(480)
+            .x(d3.time.scale().domain([min_date, max_date]))
+            .brushOn(false)
+            .symbolSize(8)
+            .clipPadding(10)
+            .yAxisLabel("Amount Spent")
+            .dimension(spend_dim)
+            .group(spend_group);
+            
+        dc.renderAll();
+    }
+    </script>
+    
+    
+    
+    
 </body>
 </html>
